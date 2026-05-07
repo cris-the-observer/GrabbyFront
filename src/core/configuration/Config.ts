@@ -27,6 +27,7 @@ export interface ServerConfig {
   turnstileSiteKey(): string;
   turnIntervalMs(): number;
   gameCreationRate(): number;
+  publicLobbiesEnabled(): boolean;
   numWorkers(): number;
   workerIndex(gameID: GameID): number;
   workerPath(gameID: GameID): string;

@@ -76,7 +76,11 @@ export class MasterLobbyService {
       this.started = true;
       this.log.info("All workers ready, starting game scheduling");
       startPolling(async () => this.broadcastLobbies(), 500);
-      startPolling(async () => await this.maybeScheduleLobby(), 1000);
+      if (this.config.publicLobbiesEnabled()) {
+        startPolling(async () => await this.maybeScheduleLobby(), 1000);
+      } else {
+        this.log.info("Public lobby scheduling disabled");
+      }
     }
   }
 

@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   Difficulty,
   Game,
-  GameMode,
   GameType,
   Gold,
   Player,
@@ -29,6 +28,13 @@ import { PastelThemeDark } from "./PastelThemeDark";
 const DEFENSE_DEBUFF_MIDPOINT = 150_000;
 const DEFENSE_DEBUFF_DECAY_RATE = Math.LN2 / 50000;
 const DEFAULT_SPAWN_IMMUNITY_TICKS = 5 * 10;
+
+function portFromEnv(value: string | undefined, fallback: number): number {
+  const port = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(port) && port > 0 && port < 65536
+    ? port
+    : fallback;
+}
 
 const JwksSchema = z.object({
   keys: z
@@ -118,6 +124,9 @@ export abstract class DefaultServerConfig implements ServerConfig {
   gameCreationRate(): number {
     return 2 * 60 * 1000;
   }
+  publicLobbiesEnabled(): boolean {
+    return false;
+  }
 
   workerIndex(gameID: GameID): number {
     return simpleHash(gameID) % this.numWorkers();
@@ -129,7 +138,7 @@ export abstract class DefaultServerConfig implements ServerConfig {
     return this.workerPortByIndex(this.workerIndex(gameID));
   }
   workerPortByIndex(index: number): number {
-    return 3001 + index;
+    return portFromEnv(Env.GRABBY_WORKER_BASE_PORT, 3001) + index;
   }
 }
 
@@ -595,10 +604,7 @@ export class DefaultConfig implements Config {
   }
 
   percentageTilesOwnedToWin(): number {
-    if (this._gameConfig.gameMode === GameMode.Team) {
-      return 95;
-    }
-    return 80;
+    return 75;
   }
   boatMaxNumber(): number {
     if (this.isUnitDisabled(UnitType.TransportShip)) {

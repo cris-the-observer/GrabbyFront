@@ -22,6 +22,7 @@ import {
   invalidateUserMe,
   purchaseWithCurrency,
 } from "./Api";
+import { V1_ONLINE_PRODUCT_ENABLED } from "./GrabbyFrontV1";
 import { translateText } from "./Utils";
 
 export const TEMP_FLARE_OFFSET = 1 * 60 * 1000; // 1 minute
@@ -99,6 +100,10 @@ function simpleHash(str: string): string {
 }
 
 export async function fetchCosmetics(): Promise<Cosmetics | null> {
+  if (!V1_ONLINE_PRODUCT_ENABLED) {
+    __cosmetics ??= Promise.resolve(null);
+    return __cosmetics;
+  }
   if (__cosmetics !== null) {
     return __cosmetics;
   }

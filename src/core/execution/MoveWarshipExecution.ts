@@ -9,6 +9,10 @@ export class MoveWarshipExecution implements Execution {
   ) {}
 
   init(mg: Game, _ticks: number): void {
+    if (mg.config().isUnitDisabled(UnitType.Warship)) {
+      console.warn("MoveWarshipExecution: warships are disabled");
+      return;
+    }
     if (!mg.isValidRef(this.position)) {
       console.warn(`MoveWarshipExecution: position ${this.position} not valid`);
       return;

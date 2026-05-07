@@ -45,6 +45,8 @@ describe("Alliance acceptance immediately destroys in-flight nukes", () => {
     player1.conquer(game.ref(0, 0));
     player2.conquer(game.ref(5, 5));
     player3.conquer(game.ref(10, 10));
+    player1.establishContactWith(player2);
+    player1.establishContactWith(player3);
 
     player1.buildUnit(UnitType.MissileSilo, game.ref(0, 0), {});
   });

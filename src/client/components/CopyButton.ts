@@ -9,6 +9,7 @@ import { copyToClipboard, translateText } from "../Utils";
 export class CopyButton extends LitElement {
   @property({ type: String, attribute: "lobby-id" }) lobbyId = "";
   @property({ type: String, attribute: "lobby-suffix" }) lobbySuffix = "";
+  @property({ type: String, attribute: "join-token" }) joinToken = "";
   @property({ type: Boolean, attribute: "include-lobby-query" })
   includeLobbyQuery = false;
   @property({ type: String, attribute: "copy-text" }) copyText = "";
@@ -66,7 +67,13 @@ export class CopyButton extends LitElement {
     const config = await getRuntimeClientServerConfig();
     let url = `${window.location.origin}/${config.workerPath(this.lobbyId)}/game/${this.lobbyId}`;
     if (this.includeLobbyQuery) {
-      url += `?lobby&s=${encodeURIComponent(this.lobbySuffix)}`;
+      const params = new URLSearchParams({ lobby: "" });
+      if (this.joinToken) {
+        params.set("joinToken", this.joinToken);
+      } else if (this.lobbySuffix) {
+        params.set("s", this.lobbySuffix);
+      }
+      url += `?${params.toString()}`;
     }
     return url;
   }

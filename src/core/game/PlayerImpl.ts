@@ -103,6 +103,8 @@ export class PlayerImpl implements Player {
   public _outgoingLandAttacks: Attack[] = [];
 
   private _spawnTile: TileRef | undefined;
+  private _spawnTick: Tick | undefined;
+  private contactIDs = new Set<PlayerID>();
   private _isDisconnected = false;
 
   constructor(
@@ -447,10 +449,41 @@ export class PlayerImpl implements Player {
 
   setSpawnTile(spawnTile: TileRef): void {
     this._spawnTile = spawnTile;
+    this._spawnTick ??= this.mg.ticks();
   }
 
   spawnTile(): TileRef | undefined {
     return this._spawnTile;
+  }
+
+  spawnTick(): Tick | undefined {
+    return this._spawnTick;
+  }
+
+  hasContactWith(other: Player): boolean {
+    return other === this || this.contactIDs.has(other.id());
+  }
+
+  establishContactWith(other: Player): void {
+    if (other === this) {
+      return;
+    }
+    this.contactIDs.add(other.id());
+    if (other.isPlayer()) {
+      if (!other.hasContactWith(this)) {
+        other.establishContactWith(this);
+      }
+    }
+  }
+
+  contactSmallIDs(): ReadonlySet<number> {
+    const ids = new Set<number>([this.smallID()]);
+    for (const id of this.contactIDs) {
+      if (this.mg.hasPlayer(id)) {
+        ids.add(this.mg.player(id).smallID());
+      }
+    }
+    return ids;
   }
 
   incomingAllianceRequests(): AllianceRequest[] {
@@ -534,6 +567,10 @@ export class PlayerImpl implements Player {
     if (this.isFriendly(other) || !this.isAlive()) {
       return false;
     }
+    if (!this.hasContactWith(other) && !this.sharesBorderWith(other)) {
+      return false;
+    }
+    this.establishContactWith(other);
 
     const hasPending = this.outgoingAllianceRequests().some(
       (ar) => ar.recipient() === other,
@@ -600,6 +637,10 @@ export class PlayerImpl implements Player {
     if (this.isAlliedWith(recipient)) {
       throw new Error(`cannot create alliance request, already allies`);
     }
+    if (!this.hasContactWith(recipient) && !this.sharesBorderWith(recipient)) {
+      return null;
+    }
+    this.establishContactWith(recipient);
     return this.mg.createAllianceRequest(this, recipient satisfies Player);
   }
 
@@ -739,7 +780,8 @@ export class PlayerImpl implements Player {
     if (
       !this.isAlive() ||
       !recipient.isAlive() ||
-      !this.isFriendly(recipient)
+      !this.isFriendly(recipient) ||
+      !this.hasContactWith(recipient)
     ) {
       return false;
     }
@@ -766,7 +808,8 @@ export class PlayerImpl implements Player {
     if (
       !this.isAlive() ||
       !recipient.isAlive() ||
-      !this.isFriendly(recipient)
+      !this.isFriendly(recipient) ||
+      !this.hasContactWith(recipient)
     ) {
       return false;
     }
@@ -794,6 +837,7 @@ export class PlayerImpl implements Player {
     const removed = this.removeTroops(troops);
     if (removed === 0) return false;
     recipient.addTroops(removed);
+    this.establishContactWith(recipient);
 
     this.sentDonations.push(new Donation(recipient, this.mg.ticks()));
     this.mg.displayMessage(
@@ -818,6 +862,7 @@ export class PlayerImpl implements Player {
     const removed = this.removeGold(gold);
     if (removed === 0n) return false;
     recipient.addGold(removed);
+    this.establishContactWith(recipient);
 
     this.sentDonations.push(new Donation(recipient, this.mg.ticks()));
     this.mg.displayMessage(

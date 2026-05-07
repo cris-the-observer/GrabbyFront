@@ -1,28 +1,17 @@
 import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { assetUrl } from "../../../core/AssetUrls";
 import {
   Difficulty,
   GameMapType,
   mapCategories,
 } from "../../../core/game/Game";
+import { getDefaultV1Map, getV1VisibleMaps } from "../../GrabbyFrontV1";
 import { translateText } from "../../Utils";
 import "./MapDisplay";
-const randomMap = assetUrl("images/RandomMap.webp");
-
-const featuredMaps: GameMapType[] = [
-  GameMapType.World,
-  GameMapType.Europe,
-  GameMapType.NorthAmerica,
-  GameMapType.SouthAmerica,
-  GameMapType.Asia,
-  GameMapType.Africa,
-  GameMapType.Japan,
-];
 
 @customElement("map-picker")
 export class MapPicker extends LitElement {
-  @property({ type: String }) selectedMap: GameMapType = GameMapType.World;
+  @property({ type: String }) selectedMap: GameMapType = getDefaultV1Map();
   @property({ type: Boolean }) useRandomMap = false;
   @property({ type: Boolean }) showMedals = false;
   @property({ type: Boolean }) randomMapDivider = false;
@@ -38,14 +27,6 @@ export class MapPicker extends LitElement {
 
   private handleMapSelection(mapValue: GameMapType) {
     this.onSelectMap?.(mapValue);
-  }
-
-  private handleSelectRandomMap = () => {
-    this.onSelectRandom?.();
-  };
-
-  private preventImageDrag(event: DragEvent) {
-    event.preventDefault();
   }
 
   private getWins(mapValue: GameMapType): Set<Difficulty> {
@@ -73,7 +54,13 @@ export class MapPicker extends LitElement {
   }
 
   private renderAllMaps() {
-    const mapCategoryEntries = Object.entries(mapCategories);
+    const visible = new Set(getV1VisibleMaps(this.selectedMap));
+    const mapCategoryEntries = Object.entries(mapCategories)
+      .map(
+        ([categoryKey, maps]) =>
+          [categoryKey, maps.filter((map) => visible.has(map))] as const,
+      )
+      .filter(([_, maps]) => maps.length > 0);
     return html`<div class="space-y-8">
       ${mapCategoryEntries.map(
         ([categoryKey, maps]) => html`
@@ -93,10 +80,7 @@ export class MapPicker extends LitElement {
   }
 
   private renderFeaturedMaps() {
-    let featuredMapList = featuredMaps;
-    if (!this.useRandomMap && !featuredMapList.includes(this.selectedMap)) {
-      featuredMapList = [this.selectedMap, ...featuredMaps];
-    }
+    const featuredMapList = getV1VisibleMaps(this.selectedMap);
     return html`<div class="w-full">
       <h4
         class="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 pl-2"
@@ -145,46 +129,6 @@ export class MapPicker extends LitElement {
           </div>
         </div>
         ${this.showAllMaps ? this.renderAllMaps() : this.renderFeaturedMaps()}
-        <div
-          class="w-full ${this.randomMapDivider
-            ? "pt-4 border-t border-white/5"
-            : ""}"
-        >
-          <h4
-            class="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 pl-2"
-          >
-            ${translateText("map_categories.special")}
-          </h4>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <button
-              type="button"
-              class="w-full h-full p-3 flex flex-col items-center justify-between rounded-xl border cursor-pointer transition-all duration-200 active:scale-95 gap-3 group ${this
-                .useRandomMap
-                ? "bg-malibu-blue/20 border-malibu-blue/50 shadow-[var(--shadow-malibu-blue-strong)]"
-                : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 hover:-translate-y-1"}"
-              @click=${this.handleSelectRandomMap}
-            >
-              <div
-                class="w-full aspect-[2/1] relative overflow-hidden rounded-lg bg-black/20"
-              >
-                <img
-                  src=${randomMap}
-                  alt=${translateText("map.random")}
-                  draggable="false"
-                  @dragstart=${this.preventImageDrag}
-                  class="w-full h-full object-cover ${this.useRandomMap
-                    ? "opacity-100"
-                    : "opacity-80"} group-hover:opacity-100 transition-opacity duration-200"
-                />
-              </div>
-              <div
-                class="text-xs font-bold text-white uppercase tracking-wider text-center leading-tight break-words hyphens-auto"
-              >
-                ${translateText("map.random")}
-              </div>
-            </button>
-          </div>
-        </div>
       </div>
     `;
   }

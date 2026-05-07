@@ -4,6 +4,7 @@ import { z } from "zod";
 import { TokenPayload, TokenPayloadSchema } from "../core/ApiSchemas";
 import { base64urlToUuid } from "../core/Base64";
 import { getApiBase, getAudience } from "./Api";
+import { V1_ONLINE_PRODUCT_ENABLED } from "./GrabbyFrontV1";
 import { generateCryptoRandomUUID } from "./Utils";
 
 export type UserAuth = { jwt: string; claims: TokenPayload } | false;
@@ -77,6 +78,9 @@ export async function isLoggedIn(): Promise<boolean> {
 export async function userAuth(
   shouldRefresh: boolean = true,
 ): Promise<UserAuth> {
+  if (!V1_ONLINE_PRODUCT_ENABLED) {
+    return false;
+  }
   try {
     const jwt = __jwt;
     if (!jwt) {
@@ -211,6 +215,9 @@ export async function sendMagicLink(email: string): Promise<boolean> {
 
 // WARNING: DO NOT EXPOSE THIS ID
 export async function getPlayToken(): Promise<string> {
+  if (!V1_ONLINE_PRODUCT_ENABLED) {
+    return getPersistentIDFromLocalStorage();
+  }
   const result = await userAuth();
   if (result !== false) return result.jwt;
   return getPersistentIDFromLocalStorage();

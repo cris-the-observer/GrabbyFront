@@ -1,5 +1,6 @@
 import { Config, Theme } from "../../../core/configuration/Config";
 import { GameView } from "../../../core/game/GameView";
+import { terrainColorForMap } from "../../../core/game/TerrainColors";
 import { TransformHandler } from "../TransformHandler";
 import { Layer } from "./Layer";
 
@@ -30,7 +31,12 @@ export class TerrainLayer implements Layer {
     if (updatedTiles.length > 0) {
       let dirty = false;
       for (const tile of updatedTiles) {
-        const terrainColor = this.theme.terrainColor(this.game, tile);
+        const terrainColor = terrainColorForMap(
+          this.config.gameConfig().gameMap,
+          this.theme,
+          this.game,
+          tile,
+        );
         const offset = tile * 4;
         const r = terrainColor.rgba.r;
         const g = terrainColor.rgba.g;
@@ -78,7 +84,12 @@ export class TerrainLayer implements Layer {
   initImageData() {
     this.theme = this.config.theme();
     this.game.forEachTile((tile) => {
-      const terrainColor = this.theme.terrainColor(this.game, tile);
+      const terrainColor = terrainColorForMap(
+        this.config.gameConfig().gameMap,
+        this.theme,
+        this.game,
+        tile,
+      );
       // TODO: isn't tileref and index the same?
       const index = this.game.y(tile) * this.game.width() + this.game.x(tile);
       const offset = index * 4;

@@ -407,6 +407,8 @@ export class Transport {
       cosmetics: this.lobbyConfig.cosmetics,
       turnstileToken: this.lobbyConfig.turnstileToken,
       token: await getPlayToken(),
+      joinToken: this.lobbyConfig.joinToken,
+      hostToken: this.lobbyConfig.hostToken,
     } satisfies ClientJoinMessage);
   }
 
@@ -417,6 +419,8 @@ export class Transport {
       // Note: clientID is not sent - server looks it up from persistentID in token
       lastTurn: lastTurn,
       token: await getPlayToken(),
+      joinToken: this.lobbyConfig.joinToken,
+      hostToken: this.lobbyConfig.hostToken,
     } satisfies ClientRejoinMessage);
   }
 
@@ -657,6 +661,7 @@ export class Transport {
       const msg = {
         type: "intent",
         intent: intent,
+        hostToken: this.lobbyConfig.hostToken,
       } satisfies ClientIntentMessage;
       this.sendMsg(msg);
     } else {

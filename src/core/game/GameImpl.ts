@@ -8,6 +8,7 @@ import { ATTACK_INDEX_SENT } from "../StatsSchemas";
 import { simpleHash } from "../Util";
 import { AllianceImpl } from "./AllianceImpl";
 import { AllianceRequestImpl } from "./AllianceRequestImpl";
+import { observeContactBetweenPlayers } from "./Contacts";
 import {
   Alliance,
   AllianceRequest,
@@ -442,6 +443,7 @@ export class GameImpl implements Game {
 
     this.execs.push(...inited);
     this.unInitExecs = unInited;
+    observeContactBetweenPlayers(this);
     for (const player of this._players.values()) {
       // Players change each to so always add them
       this.addUpdate(player.toUpdate());

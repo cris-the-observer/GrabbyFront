@@ -82,6 +82,7 @@ export class AttackExecution implements Execution {
 
     if (this.target && this.target.isPlayer()) {
       const targetPlayer = this.target as Player;
+      this._owner.establishContactWith(targetPlayer);
       if (
         targetPlayer.type() !== PlayerType.Bot &&
         this._owner.type() !== PlayerType.Bot

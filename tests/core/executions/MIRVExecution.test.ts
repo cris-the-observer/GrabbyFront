@@ -34,6 +34,7 @@ describe("MIRVExecution", () => {
 
     player = game.player("player_id");
     otherPlayer = game.player("other_id");
+    player.establishContactWith(otherPlayer);
 
     // Give player territory and missile silo
     for (let x = 5; x < 15; x++) {

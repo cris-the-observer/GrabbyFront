@@ -2,9 +2,9 @@ import { Logger } from "winston";
 import WebSocket from "ws";
 import { ServerConfig } from "../core/configuration/Config";
 import {
+  DefaultGameMap,
   Difficulty,
   GameMapSize,
-  GameMapType,
   GameMode,
   GameType,
 } from "../core/game/Game";
@@ -35,10 +35,11 @@ export class GameManager {
   joinClient(
     client: Client,
     gameID: GameID,
+    credentials?: { hostToken?: string },
   ): "joined" | "kicked" | "rejected" | "not_found" {
     const game = this.games.get(gameID);
     if (!game) return "not_found";
-    return game.joinClient(client);
+    return game.joinClient(client, credentials);
   }
 
   rejoinClient(
@@ -47,10 +48,17 @@ export class GameManager {
     gameID: GameID,
     lastTurn: number = 0,
     identityUpdate?: { username: string; clanTag: string | null },
+    credentials?: { hostToken?: string },
   ): boolean {
     const game = this.games.get(gameID);
     if (!game) return false;
-    return game.rejoinClient(ws, persistentID, lastTurn, identityUpdate);
+    return game.rejoinClient(
+      ws,
+      persistentID,
+      lastTurn,
+      identityUpdate,
+      credentials,
+    );
   }
 
   createGame(
@@ -73,7 +81,7 @@ export class GameManager {
       {
         donateGold: false,
         donateTroops: false,
-        gameMap: GameMapType.World,
+        gameMap: DefaultGameMap,
         gameType: GameType.Private,
         gameMapSize: GameMapSize.Normal,
         difficulty: Difficulty.Easy,

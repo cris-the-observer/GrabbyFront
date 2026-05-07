@@ -46,6 +46,9 @@ export class TestServerConfig implements ServerConfig {
   gameCreationRate(): number {
     throw new Error("Method not implemented.");
   }
+  publicLobbiesEnabled(): boolean {
+    return false;
+  }
   async lobbyMaxPlayers(): Promise<number> {
     throw new Error("Method not implemented.");
   }

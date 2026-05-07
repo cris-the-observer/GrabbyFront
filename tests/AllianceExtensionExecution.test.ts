@@ -27,6 +27,8 @@ describe("AllianceExtensionExecution", () => {
     player1 = game.player("player1");
     player2 = game.player("player2");
     player3 = game.player("player3");
+    player1.establishContactWith(player2);
+    player1.establishContactWith(player3);
 
     while (game.inSpawnPhase()) {
       game.executeNextTick();

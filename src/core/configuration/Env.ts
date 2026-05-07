@@ -86,4 +86,10 @@ export const Env = {
   get ADMIN_TOKEN() {
     return getEnv("ADMIN_TOKEN");
   },
+  get GRABBY_MASTER_PORT() {
+    return getEnv("GRABBY_MASTER_PORT");
+  },
+  get GRABBY_WORKER_BASE_PORT() {
+    return getEnv("GRABBY_WORKER_BASE_PORT");
+  },
 };

@@ -12,6 +12,7 @@ import {
 import { PublicGameInfo, PublicGames } from "../core/Schemas";
 import "./components/IOSAddToHomeScreenBanner";
 import { crazyGamesSDK } from "./CrazyGamesSDK";
+import { V1_PUBLIC_LOBBIES_ENABLED } from "./GrabbyFrontV1";
 import { HostLobbyModal } from "./HostLobbyModal";
 import { JoinLobbyModal } from "./JoinLobbyModal";
 import { PublicLobbySocket } from "./LobbySocket";
@@ -58,7 +59,9 @@ export class GameModeSelector extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.lobbySocket.start();
+    if (V1_PUBLIC_LOBBIES_ENABLED) {
+      this.lobbySocket.start();
+    }
     getRuntimeClientServerConfig().then((config) => {
       this.defaultLobbyTime = config.gameCreationRate() / 1000;
     });
@@ -112,6 +115,35 @@ export class GameModeSelector extends LitElement {
     const ffa = this.lobbies?.games?.["ffa"]?.[0];
     const teams = this.lobbies?.games?.["team"]?.[0];
     const special = this.lobbies?.games?.["special"]?.[0];
+
+    if (!V1_PUBLIC_LOBBIES_ENABLED) {
+      return html`
+        <div
+          class="flex flex-col gap-4 w-full px-4 sm:px-0 mx-auto pb-4 sm:pb-0"
+        >
+          <div class="h-14">
+            ${this.renderSmallActionCard(
+              translateText("main.solo"),
+              this.openSinglePlayerModal,
+              "bg-malibu-blue hover:bg-aquarius active:bg-malibu-blue/80 hover:scale-y-105 hover:scale-x-[1.01]",
+            )}
+          </div>
+          <div class="grid grid-cols-2 gap-4 h-14">
+            ${this.renderSmallActionCard(
+              translateText("main.create"),
+              this.openHostLobby,
+              "bg-surface hover:brightness-[1.08] active:brightness-[0.95] hover:scale-105 hover:shadow-[var(--shadow-action-card-hover)]",
+            )}
+            ${this.renderSmallActionCard(
+              translateText("main.join"),
+              this.openJoinLobby,
+              "bg-surface hover:brightness-[1.08] active:brightness-[0.95] hover:scale-105 hover:shadow-[var(--shadow-action-card-hover)]",
+            )}
+          </div>
+          <ios-add-to-home-screen-banner></ios-add-to-home-screen-banner>
+        </div>
+      `;
+    }
 
     return html`
       <div class="flex flex-col gap-4 w-full px-4 sm:px-0 mx-auto pb-4 sm:pb-0">

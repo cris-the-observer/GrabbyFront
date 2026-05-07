@@ -63,6 +63,7 @@ describe("GameImpl", () => {
 
     attacker = game.player(attackerInfo.id);
     defender = game.player(defenderInfo.id);
+    attacker.establishContactWith(defender);
   });
 
   test("Don't become traitor when betraying inactive player", async () => {

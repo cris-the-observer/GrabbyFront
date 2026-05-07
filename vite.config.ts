@@ -51,9 +51,19 @@ function serveProprietaryDir(
   };
 }
 
+function portFromEnv(value: string | undefined, fallback: number): number {
+  const port = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(port) && port > 0 && port < 65536
+    ? port
+    : fallback;
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const isProduction = mode === "production";
+  const masterPort = portFromEnv(env.GRABBY_MASTER_PORT, 3000);
+  const workerBasePort = portFromEnv(env.GRABBY_WORKER_BASE_PORT, 3001);
+  const clientPort = portFromEnv(env.GRABBY_CLIENT_PORT, 9000);
   const resourcesDir = getResourcesDir(__dirname);
   const proprietaryDir = getProprietaryDir(__dirname);
   const sourceDirs = [resourcesDir, proprietaryDir];
@@ -188,7 +198,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __ASSET_MANIFEST__: JSON.stringify(assetManifest),
       "process.env.WEBSOCKET_URL": JSON.stringify(
-        isProduction ? "" : "localhost:3000",
+        isProduction ? "" : `localhost:${masterPort}`,
       ),
       "process.env.GAME_ENV": JSON.stringify(isProduction ? "prod" : "dev"),
       "process.env.STRIPE_PUBLISHABLE_KEY": JSON.stringify(
@@ -215,18 +225,18 @@ export default defineConfig(({ mode }) => {
     },
 
     server: {
-      port: 9000,
+      port: clientPort,
       // Automatically open the browser when the server starts
       open: process.env.SKIP_BROWSER_OPEN !== "true",
       proxy: {
         "/lobbies": {
-          target: "ws://localhost:3000",
+          target: `ws://localhost:${masterPort}`,
           ws: true,
           changeOrigin: true,
         },
         // Worker proxies
         "/w0": {
-          target: "ws://localhost:3001",
+          target: `ws://localhost:${workerBasePort}`,
           ws: true,
           secure: false,
           changeOrigin: true,
@@ -234,7 +244,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/w0/, ""),
         },
         "/w1": {
-          target: "ws://localhost:3002",
+          target: `ws://localhost:${workerBasePort + 1}`,
           ws: true,
           secure: false,
           changeOrigin: true,
@@ -243,7 +253,7 @@ export default defineConfig(({ mode }) => {
         },
         // API proxies
         "/api": {
-          target: "http://localhost:3000",
+          target: `http://localhost:${masterPort}`,
           changeOrigin: true,
           secure: false,
         },

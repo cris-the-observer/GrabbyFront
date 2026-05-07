@@ -105,11 +105,13 @@ describe("GameServer - kick_player authorization", () => {
   async function sendKickMessage(
     ws: ReturnType<typeof makeMockWs>,
     target: string,
+    hostToken?: string,
   ) {
     await ws.trigger(
       "message",
       JSON.stringify({
         type: "intent",
+        hostToken,
         intent: { type: "kick_player", target },
       }),
     );
@@ -117,6 +119,7 @@ describe("GameServer - kick_player authorization", () => {
 
   it("lobby creator can kick another player with lobby_creator reason", async () => {
     const game = makeGame("creator-pid");
+    const { hostToken } = game.privateLobbyCreateResponse();
     const kickSpy = vi.spyOn(game, "kickClient");
 
     const { client: creator, ws: creatorWs } = makeClient(
@@ -128,7 +131,7 @@ describe("GameServer - kick_player authorization", () => {
     game.joinClient(creator);
     game.joinClient(target);
 
-    await sendKickMessage(creatorWs, "target-cid");
+    await sendKickMessage(creatorWs, "target-cid", hostToken);
 
     expect(kickSpy).toHaveBeenCalledOnce();
     expect(kickSpy).toHaveBeenCalledWith(
@@ -138,7 +141,13 @@ describe("GameServer - kick_player authorization", () => {
   });
 
   it("admin-flared player can kick another player with admin reason", async () => {
-    const game = makeGame();
+    const game = new GameServer(
+      "test-game",
+      mockLogger,
+      Date.now(),
+      mockConfig,
+      { gameType: GameType.Public } as any,
+    );
     const kickSpy = vi.spyOn(game, "kickClient");
 
     const { client: admin, ws: adminWs } = makeClient(

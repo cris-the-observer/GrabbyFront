@@ -1,0 +1,117 @@
+{
+  "seed": 48890417,
+  "width": 2048,
+  "height": 2048,
+  "totalCells": 4194304,
+  "systemCells": 464734,
+  "spawnCandidateGalaxies": 24,
+  "selectedStarts": [
+    {
+      "coordinates": [
+        270,
+        300
+      ],
+      "flag": "",
+      "name": "Dawn Filament"
+    },
+    {
+      "coordinates": [
+        520,
+        220
+      ],
+      "flag": "",
+      "name": "Kepler Reach"
+    },
+    {
+      "coordinates": [
+        1050,
+        250
+      ],
+      "flag": "",
+      "name": "Vela Thread"
+    },
+    {
+      "coordinates": [
+        1660,
+        260
+      ],
+      "flag": "",
+      "name": "Noctilucent Bank"
+    },
+    {
+      "coordinates": [
+        660,
+        760
+      ],
+      "flag": "",
+      "name": "Horizon Arch"
+    },
+    {
+      "coordinates": [
+        1210,
+        790
+      ],
+      "flag": "",
+      "name": "Centauri Drift"
+    },
+    {
+      "coordinates": [
+        1760,
+        900
+      ],
+      "flag": "",
+      "name": "Eos Spur"
+    },
+    {
+      "coordinates": [
+        250,
+        1130
+      ],
+      "flag": "",
+      "name": "Tsiolkovsky Isles"
+    },
+    {
+      "coordinates": [
+        880,
+        1160
+      ],
+      "flag": "",
+      "name": "Baryon Crown"
+    },
+    {
+      "coordinates": [
+        1450,
+        1190
+      ],
+      "flag": "",
+      "name": "Pioneer Crossing"
+    },
+    {
+      "coordinates": [
+        720,
+        1720
+      ],
+      "flag": "",
+      "name": "Long Baseline"
+    },
+    {
+      "coordinates": [
+        1350,
+        1660
+      ],
+      "flag": "",
+      "name": "Kardashev Strand"
+    }
+  ],
+  "generator": "map-generator/universe/generate.mjs",
+  "topologyReviewGuidance": [
+    "Systems are OpenFront land; void is OpenFront ocean water.",
+    "Seeded graph nodes carve granular connected galaxy archipelagos.",
+    "Start positions are selected one per start-marked galaxy."
+  ],
+  "thumbnailPaletteSummary": [
+    "Deep void is near-black navy.",
+    "Near-system void lifts subtly through distance shading.",
+    "Sparse systems are dim blue-white; denser cores are pale gold."
+  ]
+}

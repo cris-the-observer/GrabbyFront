@@ -170,9 +170,18 @@ export enum GameMapType {
   ArchipelagoSea = "ArchipelagoSea",
   BajaCalifornia = "Baja California",
   MiddleEast = "Middle East",
+  Universe = "Universe",
 }
 
 export type GameMapName = keyof typeof GameMapType;
+
+export const DefaultGameMap = GameMapType.Universe;
+export const normalGameplayMaps: readonly GameMapType[] = [
+  GameMapType.Universe,
+];
+export const visibleMapCategories: Record<string, readonly GameMapType[]> = {
+  universe: normalGameplayMaps,
+};
 
 export const mapCategories: Record<string, GameMapType[]> = {
   continental: [
@@ -234,6 +243,7 @@ export const mapCategories: Record<string, GameMapType[]> = {
     GameMapType.MiddleEast,
   ],
   fantasy: [
+    GameMapType.Universe,
     GameMapType.Pangaea,
     GameMapType.Pluto,
     GameMapType.Mars,
@@ -704,6 +714,10 @@ export interface Player {
   hasSpawned(): boolean;
   setSpawnTile(spawnTile: TileRef): void;
   spawnTile(): TileRef | undefined;
+  spawnTick(): Tick | undefined;
+  hasContactWith(other: Player): boolean;
+  establishContactWith(other: Player): void;
+  contactSmallIDs(): ReadonlySet<number>;
 
   // Territory
   tiles(): ReadonlySet<TileRef>;

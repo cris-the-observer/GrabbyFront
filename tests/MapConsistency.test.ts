@@ -17,6 +17,7 @@ const EN_JSON = path.join(ROOT, "resources", "lang", "en.json");
 const MAP_PLAYLIST = path.join(ROOT, "src", "server", "MapPlaylist.ts");
 
 const allMapKeys = Object.keys(GameMapType) as GameMapName[];
+const CUSTOM_RUNTIME_GENERATED_MAPS: Set<GameMapName> = new Set(["Universe"]);
 
 // Maps excluded from the frequency requirement (not part of regular playlists).
 const FREQUENCY_EXEMPTIONS: Set<GameMapName> = new Set([
@@ -93,6 +94,7 @@ describe("Map consistency", () => {
     const mainGoMaps = getMainGoMaps();
     const errors: string[] = [];
     for (const key of allMapKeys) {
+      if (CUSTOM_RUNTIME_GENERATED_MAPS.has(key)) continue;
       const folder = toFolderName(key);
       if (!mainGoMaps.has(folder)) {
         errors.push(`${key} (folder "${folder}") is missing from main.go`);
@@ -124,6 +126,7 @@ describe("Map consistency", () => {
   test("Every GameMapType has map-generator assets (image.png + info.json only)", () => {
     const errors: string[] = [];
     for (const key of allMapKeys) {
+      if (CUSTOM_RUNTIME_GENERATED_MAPS.has(key)) continue;
       const folder = toFolderName(key);
       const dir = path.join(MAP_GEN_MAPS, folder);
 
@@ -244,6 +247,27 @@ describe("Map consistency", () => {
     }
     if (errors.length > 0) {
       throw new Error("Resource map file violations:\n" + errors.join("\n"));
+    }
+  });
+
+  test("Custom runtime-generated maps have generator source, config, and review metadata", () => {
+    const errors: string[] = [];
+    for (const key of CUSTOM_RUNTIME_GENERATED_MAPS) {
+      const folder = toFolderName(key);
+      const generatorDir = path.join(ROOT, "map-generator", folder);
+      for (const req of ["README.md", "config.json", "generate.mjs"]) {
+        if (!fs.existsSync(path.join(generatorDir, req))) {
+          errors.push(`${key}: missing map-generator/${folder}/${req}`);
+        }
+      }
+      if (!fs.existsSync(path.join(RESOURCES_MAPS, folder, "review.json"))) {
+        errors.push(`${key}: missing resources/maps/${folder}/review.json`);
+      }
+    }
+    if (errors.length > 0) {
+      throw new Error(
+        "Custom runtime-generated map violations:\n" + errors.join("\n"),
+      );
     }
   });
 

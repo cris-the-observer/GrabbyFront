@@ -71,4 +71,17 @@ describe("JoinLobbyModal server time offset", () => {
     expect(dispatchSpy).toHaveBeenCalledTimes(1);
     expect((modal as any).handledJoinTimeout).toBe(true);
   });
+
+  it("extracts join tokens from private lobby invite URLs", () => {
+    const modal = new JoinLobbyModal();
+
+    const invite = (modal as any).parseLobbyInvite(
+      "https://grabby.example/w0/game/ABCD1234?lobby&joinToken=join-token-123",
+    );
+
+    expect(invite).toEqual({
+      lobbyId: "ABCD1234",
+      joinToken: "join-token-123",
+    });
+  });
 });

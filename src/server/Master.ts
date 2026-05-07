@@ -6,6 +6,7 @@ import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GameEnv } from "../core/configuration/Config";
+import { Env } from "../core/configuration/Env";
 import { getServerConfigFromServer } from "../core/configuration/ConfigLoader";
 import { logger } from "./Logger";
 import { MapPlaylist } from "./MapPlaylist";
@@ -25,6 +26,13 @@ const log = logger.child({ comp: "m" });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function portFromEnv(value: string | undefined, fallback: number): number {
+  const port = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(port) && port > 0 && port < 65536
+    ? port
+    : fallback;
+}
 
 app.use(express.json());
 
@@ -136,7 +144,7 @@ export async function startMaster() {
     );
   });
 
-  const PORT = 3000;
+  const PORT = portFromEnv(Env.GRABBY_MASTER_PORT, 3000);
   server.listen(PORT, () => {
     log.info(`Master HTTP server listening on port ${PORT}`);
   });

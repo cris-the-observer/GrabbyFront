@@ -13,6 +13,7 @@ import {
   ClientMessageSchema,
   GameID,
   PartialGameRecordSchema,
+  PersistentIdSchema,
   ServerErrorMessage,
 } from "../core/Schemas";
 import { generateID, replacer } from "../core/Util";
@@ -60,12 +61,19 @@ export async function startWorker() {
   // Initialize lobby service (handles WebSocket upgrade routing)
   const lobbyService = new WorkerLobbyService(server, wss, gm, log);
 
-  setTimeout(
-    () => {
-      startMatchmakingPolling(gm);
-    },
-    1000 + Math.random() * 2000,
-  );
+  if (
+    config.env() === GameEnv.Dev &&
+    process.env.GRABBY_ENABLE_DEV_MATCHMAKING_CHECKIN !== "true"
+  ) {
+    log.info("Skipping dev matchmaking check-in polling");
+  } else {
+    setTimeout(
+      () => {
+        startMatchmakingPolling(gm);
+      },
+      1000 + Math.random() * 2000,
+    );
+  }
 
   if (config.otelEnabled()) {
     initWorkerMetrics(gm);
@@ -77,7 +85,14 @@ export async function startWorker() {
     config.apiKey(),
     log,
   );
-  privilegeRefresher.start();
+  if (
+    config.env() === GameEnv.Dev &&
+    process.env.GRABBY_ENABLE_DEV_PRIVILEGE_REFRESH !== "true"
+  ) {
+    log.info("Skipping dev privilege refresh");
+  } else {
+    privilegeRefresher.start();
+  }
 
   // Middleware to handle /wX path prefix
   app.use((req, res, next) => {
@@ -144,27 +159,6 @@ export async function startWorker() {
   app.post("/api/create_game/:id", async (req, res) => {
     const id = req.params.id;
 
-    // Extract persistentID from Authorization header token
-    // Never accept persistentID directly from client
-    let creatorPersistentID: string | undefined;
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.substring("Bearer ".length);
-      const result = await verifyClientToken(token, config);
-      if (result.type === "success") {
-        creatorPersistentID = result.persistentId;
-      } else {
-        log.warn(`Invalid creator token: ${result.message}`);
-        return res.status(401).json({ error: "Invalid creator token" });
-      }
-    } else if (
-      !req.headers[config.adminHeader()] // Public games use admin token instead
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Authorization header required to create a game" });
-    }
-
     if (!id) {
       log.warn(`cannot create game, id not found`);
       return res.status(400).json({ error: "Game ID is required" });
@@ -178,14 +172,27 @@ export async function startWorker() {
     }
 
     const gc = result.data;
-    if (
-      gc?.gameType === GameType.Public &&
-      req.headers[config.adminHeader()] !== config.adminToken()
-    ) {
-      log.warn(
-        `cannot create public game ${id}, ip ${ipAnonymize(clientIP)} incorrect admin token`,
-      );
-      return res.status(401).send("Unauthorized");
+    const isPublicGame = gc?.gameType === GameType.Public;
+    let creatorPersistentID: string | undefined;
+    const authHeader = req.headers.authorization;
+    if (isPublicGame) {
+      if (req.headers[config.adminHeader()] !== config.adminToken()) {
+        log.warn(
+          `cannot create public game ${id}, ip ${ipAnonymize(clientIP)} incorrect admin token`,
+        );
+        return res.status(401).send("Unauthorized");
+      }
+    } else if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.substring("Bearer ".length);
+      const authResult = await verifyClientToken(token, config);
+      if (authResult.type === "success") {
+        creatorPersistentID = authResult.persistentId;
+      } else {
+        log.info("ignoring invalid optional private lobby creator token", {
+          gameID: id,
+          message: authResult.message,
+        });
+      }
     }
 
     // Double-check this worker should host this game
@@ -207,7 +214,7 @@ export async function startWorker() {
     log.info(
       `Worker ${workerId}: IP ${ipAnonymize(clientIP)} creating ${game.isPublic() ? GameType.Public : GameType.Private}${gc?.gameMode ? ` ${gc.gameMode}` : ""} game with id ${id}${creatorPersistentID ? `, creator: ${creatorPersistentID.substring(0, 8)}...` : ""}`,
     );
-    res.json(game.gameInfo());
+    res.json(isPublicGame ? game.gameInfo() : game.privateLobbyCreateResponse());
   });
 
   app.get("/api/game/:id/exists", async (req, res) => {
@@ -324,16 +331,51 @@ export async function startWorker() {
           return;
         }
 
-        // Verify token signature
-        const result = await verifyClientToken(clientMsg.token, config);
-        if (result.type === "error") {
-          log.warn(`Invalid token: ${result.message}`, {
-            gameID: clientMsg.gameID,
-          });
-          ws.close(1002, `Unauthorized: invalid token`);
+        const game = gm.game(clientMsg.gameID);
+        if (game === null) {
+          log.info(`game ${clientMsg.gameID} not found on worker ${workerId}`);
+          ws.close(1002, "Game not found");
           return;
         }
-        const { persistentId, claims } = result;
+
+        let persistentId: string;
+        let claims = null;
+        if (!game.isPublic()) {
+          if (!game.isValidJoinToken(clientMsg.joinToken)) {
+            log.warn("Unauthorized: invalid private lobby join token", {
+              gameID: clientMsg.gameID,
+            });
+            ws.close(1002, "Unauthorized: invalid join token");
+            return;
+          }
+          const anonymousId = PersistentIdSchema.safeParse(clientMsg.token);
+          if (anonymousId.success) {
+            persistentId = anonymousId.data;
+            claims = null;
+          } else {
+            const authResult = await verifyClientToken(clientMsg.token, config);
+            if (authResult.type === "error") {
+              log.warn(`Invalid token: ${authResult.message}`, {
+                gameID: clientMsg.gameID,
+              });
+              ws.close(1002, `Unauthorized: invalid token`);
+              return;
+            }
+            persistentId = authResult.persistentId;
+            claims = authResult.claims;
+          }
+        } else {
+          const authResult = await verifyClientToken(clientMsg.token, config);
+          if (authResult.type === "error") {
+            log.warn(`Invalid token: ${authResult.message}`, {
+              gameID: clientMsg.gameID,
+            });
+            ws.close(1002, `Unauthorized: invalid token`);
+            return;
+          }
+          persistentId = authResult.persistentId;
+          claims = authResult.claims;
+        }
 
         if (claims?.role === "banned") {
           ws.close(1002, "Account Banned");
@@ -350,6 +392,8 @@ export async function startWorker() {
             persistentId,
             clientMsg.gameID,
             clientMsg.lastTurn,
+            undefined,
+            { hostToken: clientMsg.hostToken },
           );
           if (!wasFound) {
             log.warn(
@@ -371,10 +415,17 @@ export async function startWorker() {
         // Try to reconnect an existing client (e.g., page refresh)
         // If successful, skip all authorization
         if (
-          gm.rejoinClient(ws, persistentId, clientMsg.gameID, 0, {
-            username: censoredUsername,
-            clanTag: censoredClanTag,
-          })
+          gm.rejoinClient(
+            ws,
+            persistentId,
+            clientMsg.gameID,
+            0,
+            {
+              username: censoredUsername,
+              clanTag: censoredClanTag,
+            },
+            { hostToken: clientMsg.hostToken },
+          )
         ) {
           return;
         }
@@ -469,7 +520,9 @@ export async function startWorker() {
           cosmeticResult.cosmetics,
         );
 
-        const joinResult = gm.joinClient(client, clientMsg.gameID);
+        const joinResult = gm.joinClient(client, clientMsg.gameID, {
+          hostToken: clientMsg.hostToken,
+        });
 
         if (joinResult === "not_found") {
           log.info(`game ${clientMsg.gameID} not found on worker ${workerId}`);

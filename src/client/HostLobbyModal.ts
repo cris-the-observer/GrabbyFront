@@ -13,13 +13,13 @@ import {
 import {
   ClientInfo,
   GameConfig,
-  GameInfo,
   LobbyInfoEvent,
+  PrivateLobbyCreateResponse,
+  PrivateLobbyCreateResponseSchema,
   TeamCountConfig,
   isValidGameID,
 } from "../core/Schemas";
 import { generateID } from "../core/Util";
-import { getPlayToken } from "./Auth";
 import "./components/baseComponents/Modal";
 import { BaseModal } from "./components/BaseModal";
 import { CopyButton } from "./components/CopyButton";
@@ -28,6 +28,12 @@ import "./components/LobbyPlayerView";
 import "./components/ToggleInputCard";
 import { modalHeader } from "./components/ui/ModalHeader";
 import { crazyGamesSDK } from "./CrazyGamesSDK";
+import {
+  DEFAULT_V1_BOTS,
+  DEFAULT_V1_DISABLED_UNITS,
+  DEFAULT_V1_NATIONS,
+  getDefaultV1Map,
+} from "./GrabbyFrontV1";
 import { JoinLobbyEvent } from "./Main";
 import { terrainMapFileLoader } from "./TerrainMapFileLoader";
 import {
@@ -44,10 +50,10 @@ import {
 
 @customElement("host-lobby-modal")
 export class HostLobbyModal extends BaseModal {
-  @state() private selectedMap: GameMapType = GameMapType.World;
+  @state() private selectedMap: GameMapType = getDefaultV1Map();
   @state() private selectedDifficulty: Difficulty = Difficulty.Easy;
-  @state() private nations: number = 0;
-  @state() private defaultNationCount: number = 0;
+  @state() private nations: number = DEFAULT_V1_NATIONS;
+  @state() private defaultNationCount: number = DEFAULT_V1_NATIONS;
   @state() private gameMode: GameMode = GameMode.FFA;
   @state() private teamCount: TeamCountConfig = 2;
 
@@ -55,7 +61,7 @@ export class HostLobbyModal extends BaseModal {
     super();
     this.id = "page-host-lobby";
   }
-  @state() private bots: number = 400;
+  @state() private bots: number = DEFAULT_V1_BOTS;
   @state() private spawnImmunity: boolean = false;
   @state() private spawnImmunityDurationMinutes: number | undefined = undefined;
   @state() private infiniteGold: boolean = false;
@@ -74,10 +80,11 @@ export class HostLobbyModal extends BaseModal {
   @state() private disableAlliances: boolean = false;
   @state() private waterNukes: boolean = false;
   @state() private lobbyId = "";
-  @state() private lobbyUrlSuffix = "";
+  @state() private hostToken = "";
+  @state() private joinToken = "";
   @state() private clients: ClientInfo[] = [];
   @state() private useRandomMap: boolean = false;
-  @state() private disabledUnits: UnitType[] = [];
+  @state() private disabledUnits: UnitType[] = [...DEFAULT_V1_DISABLED_UNITS];
   @state() private hostCheatsEnabled: boolean = false;
   @state() private hostCheatInfiniteGold: boolean = false;
   @state() private hostCheatInfiniteTroops: boolean = false;
@@ -106,14 +113,6 @@ export class HostLobbyModal extends BaseModal {
     }
   };
 
-  private getRandomString(): string {
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-    return Array.from(
-      { length: 5 },
-      () => chars[Math.floor(Math.random() * chars.length)],
-    ).join("");
-  }
-
   private async buildLobbyUrl(): Promise<string> {
     if (crazyGamesSDK.isOnCrazyGames()) {
       const link = crazyGamesSDK.createInviteLink(this.lobbyId);
@@ -122,11 +121,13 @@ export class HostLobbyModal extends BaseModal {
       }
     }
     const config = await getRuntimeClientServerConfig();
-    return `${window.location.origin}/${config.workerPath(this.lobbyId)}/game/${this.lobbyId}?lobby&s=${encodeURIComponent(this.lobbyUrlSuffix)}`;
+    const joinTokenParam = this.joinToken
+      ? `&joinToken=${encodeURIComponent(this.joinToken)}`
+      : "";
+    return `${window.location.origin}/${config.workerPath(this.lobbyId)}/game/${this.lobbyId}?lobby${joinTokenParam}`;
   }
 
   private async constructUrl(): Promise<string> {
-    this.lobbyUrlSuffix = this.getRandomString();
     return await this.buildLobbyUrl();
   }
 
@@ -272,7 +273,7 @@ export class HostLobbyModal extends BaseModal {
           rightContent: html`
             <copy-button
               .lobbyId=${this.lobbyId}
-              .lobbySuffix=${this.lobbyUrlSuffix}
+              .joinToken=${this.joinToken}
               include-lobby-query
             ></copy-button>
           `,
@@ -440,21 +441,18 @@ export class HostLobbyModal extends BaseModal {
     // Note: clientID will be assigned by server when we join the lobby
     // lobbyCreatorClientID stays empty until then
 
-    // Copy immediately so the host can share the link without waiting for the
-    // server. If lobby creation fails, clear the clipboard to avoid a dead link.
-    void this.constructUrl().then(async (url) => {
-      this.updateHistory(url);
-      await this.updateComplete;
-      void (this.querySelector("copy-button") as CopyButton)?.handleCopy();
-    });
-
-    // Pass auth token for creator identification (server extracts persistentID from it)
     createLobby(this.lobbyId)
       .then(async (lobby) => {
-        this.lobbyId = lobby.gameID;
+        this.lobbyId = lobby.gameInfo.gameID;
+        this.hostToken = lobby.hostToken;
+        this.joinToken = lobby.joinToken;
         if (!isValidGameID(this.lobbyId)) {
           throw new Error(`Invalid lobby ID format: ${this.lobbyId}`);
         }
+        const url = await this.constructUrl();
+        this.updateHistory(url);
+        await this.updateComplete;
+        void (this.querySelector("copy-button") as CopyButton)?.handleCopy();
         crazyGamesSDK.showInviteButton(this.lobbyId);
       })
       .then(() => {
@@ -463,6 +461,8 @@ export class HostLobbyModal extends BaseModal {
             detail: {
               gameID: this.lobbyId,
               source: "host",
+              joinToken: this.joinToken,
+              hostToken: this.hostToken,
             } as JoinLobbyEvent,
             bubbles: true,
             composed: true,
@@ -518,13 +518,13 @@ export class HostLobbyModal extends BaseModal {
     }
 
     // Reset all transient form state to ensure clean slate
-    this.selectedMap = GameMapType.World;
+    this.selectedMap = getDefaultV1Map();
     this.selectedDifficulty = Difficulty.Easy;
-    this.nations = 0;
-    this.defaultNationCount = 0;
+    this.nations = DEFAULT_V1_NATIONS;
+    this.defaultNationCount = DEFAULT_V1_NATIONS;
     this.gameMode = GameMode.FFA;
     this.teamCount = 2;
-    this.bots = 400;
+    this.bots = DEFAULT_V1_BOTS;
     this.spawnImmunity = false;
     this.spawnImmunityDurationMinutes = undefined;
     this.infiniteGold = false;
@@ -537,8 +537,10 @@ export class HostLobbyModal extends BaseModal {
     this.randomSpawn = false;
     this.compactMap = false;
     this.useRandomMap = false;
-    this.disabledUnits = [];
+    this.disabledUnits = [...DEFAULT_V1_DISABLED_UNITS];
     this.lobbyId = "";
+    this.hostToken = "";
+    this.joinToken = "";
     this.clients = [];
     this.lobbyCreatorClientID = "";
     this.goldMultiplier = false;
@@ -1034,13 +1036,13 @@ export class HostLobbyModal extends BaseModal {
     const currentMap = this.selectedMap;
     try {
       const mapData = this.mapLoader.getMapData(currentMap);
-      const manifest = await mapData.manifest();
+      await mapData.manifest();
       // Only update if the map hasn't changed
       if (this.selectedMap === currentMap) {
-        this.defaultNationCount = manifest.nations.length;
+        this.defaultNationCount = DEFAULT_V1_NATIONS;
         this.nations = this.compactMap
-          ? Math.max(0, Math.floor(manifest.nations.length * 0.25))
-          : manifest.nations.length;
+          ? Math.max(0, Math.floor(DEFAULT_V1_NATIONS * 0.25))
+          : DEFAULT_V1_NATIONS;
       }
     } catch (error) {
       console.warn("Failed to load nation count", error);
@@ -1049,11 +1051,10 @@ export class HostLobbyModal extends BaseModal {
   }
 }
 
-async function createLobby(gameID: string): Promise<GameInfo> {
+async function createLobby(
+  gameID: string,
+): Promise<PrivateLobbyCreateResponse> {
   const config = await getRuntimeClientServerConfig();
-  // Send JWT token for creator identification - server extracts persistentID from it
-  // persistentID should never be exposed to other clients
-  const token = await getPlayToken();
   try {
     const response = await fetch(
       `/${config.workerPath(gameID)}/api/create_game/${gameID}`,
@@ -1061,7 +1062,6 @@ async function createLobby(gameID: string): Promise<GameInfo> {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       },
     );
@@ -1075,7 +1075,11 @@ async function createLobby(gameID: string): Promise<GameInfo> {
     const data = await response.json();
     console.log("Success:", data);
 
-    return data as GameInfo;
+    const parsed = PrivateLobbyCreateResponseSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new Error("Invalid private lobby create response");
+    }
+    return parsed.data;
   } catch (error) {
     console.error("Error creating lobby:", error);
     throw error;

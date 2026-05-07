@@ -32,6 +32,10 @@ import { GameInfoModal } from "./GameInfoModal";
 import "./GameModeSelector";
 import { GameModeSelector } from "./GameModeSelector";
 import { GameStartingModal } from "./GameStartingModal";
+import {
+  V1_ADS_ENABLED,
+  V1_ONLINE_PRODUCT_ENABLED,
+} from "./GrabbyFrontV1";
 import "./GoogleAdElement";
 import { HelpModal } from "./HelpModal";
 import "./HomepagePromos";
@@ -241,6 +245,8 @@ export interface JoinLobbyEvent {
   gameRecord?: GameRecord;
   source?: "public" | "private" | "host" | "matchmaking" | "singleplayer";
   publicLobbyInfo?: GameInfo | PublicGameInfo;
+  joinToken?: string;
+  hostToken?: string;
 }
 
 class Client {
@@ -264,13 +270,19 @@ class Client {
   private turnstileTokenPromise: Promise<{
     token: string;
     createdAt: number;
-  }> | null = null;
+  } | null> | null = null;
 
   async initialize(): Promise<void> {
     crazyGamesSDK.maybeInit();
-    // Prefetch turnstile token so it is available when
-    // the user joins a lobby.
-    this.turnstileTokenPromise = getTurnstileToken();
+    const runtimeConfig = await getRuntimeClientServerConfig();
+    // Prefetch Turnstile only when the server will require it.
+    this.turnstileTokenPromise =
+      runtimeConfig.env() === GameEnv.Dev
+        ? null
+        : getTurnstileToken().catch((error) => {
+            console.warn("Turnstile prefetch failed", error);
+            return null;
+          });
 
     // Wait for components to render before setting version
     await customElements.whenDefined("mobile-nav-bar");
@@ -440,7 +452,8 @@ class Client {
       updateAccountNavButton(userMeResponse);
       const isAdFree =
         userMeResponse !== false && userMeResponse.player?.adfree === true;
-      window.adsEnabled = !isAdFree && !crazyGamesSDK.isOnCrazyGames();
+      window.adsEnabled =
+        V1_ADS_ENABLED && !isAdFree && !crazyGamesSDK.isOnCrazyGames();
       document.dispatchEvent(
         new CustomEvent("userMeResponse", {
           detail: userMeResponse,
@@ -458,7 +471,7 @@ class Client {
       }
     };
 
-    if ((await userAuth()) === false) {
+    if (!V1_ONLINE_PRODUCT_ENABLED || (await userAuth()) === false) {
       // Not logged in
       onUserMe(false);
     } else {
@@ -712,8 +725,10 @@ class Client {
     const lobbyId =
       pathMatch && GAME_ID_REGEX.test(pathMatch[1]) ? pathMatch[1] : null;
     if (lobbyId) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const joinToken = searchParams.get("joinToken");
       window.showPage?.("page-join-lobby");
-      this.joinModal.open(lobbyId);
+      this.joinModal.open(lobbyId, undefined, joinToken);
       console.log(`joining lobby ${lobbyId}`);
       return;
     }
@@ -773,9 +788,9 @@ class Client {
     const config = await getRuntimeClientServerConfig();
     // Only update URL immediately for private lobbies, not public ones
     if (lobby.source !== "public") {
-      this.updateJoinUrlForShare(lobby.gameID, config);
+      this.updateJoinUrlForShare(lobby.gameID, config, lobby.joinToken);
     }
-    const auth = await userAuth();
+    const auth = V1_ONLINE_PRODUCT_ENABLED ? await userAuth() : false;
     const playerRole = auth !== false ? (auth.claims.role ?? null) : null;
     const newLobbyHandle = joinLobby(this.eventBus, {
       gameID: lobby.gameID,
@@ -785,6 +800,8 @@ class Client {
       playerName: this.usernameInput?.getUsername() ?? genAnonUsername(),
       playerClanTag: this.usernameInput?.getClanTag() ?? null,
       playerRole,
+      joinToken: lobby.joinToken,
+      hostToken: lobby.hostToken,
       gameStartInfo: lobby.gameStartInfo ?? lobby.gameRecord?.info,
       gameRecord: lobby.gameRecord,
     });
@@ -892,11 +909,15 @@ class Client {
   private updateJoinUrlForShare(
     lobbyId: string,
     config: Awaited<ReturnType<typeof getRuntimeClientServerConfig>>,
+    joinToken?: string,
   ) {
     const lobbyIdHidden = !this.userSettings.lobbyIdVisibility();
+    const tokenParam = joinToken
+      ? `?joinToken=${encodeURIComponent(joinToken)}`
+      : "";
     const targetUrl = lobbyIdHidden
       ? "/streamer-mode"
-      : `/${config.workerPath(lobbyId)}/game/${lobbyId}`;
+      : `/${config.workerPath(lobbyId)}/game/${lobbyId}${tokenParam}`;
     const currentUrl = window.location.pathname;
 
     if (currentUrl !== targetUrl) {

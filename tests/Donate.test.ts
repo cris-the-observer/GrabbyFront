@@ -45,6 +45,8 @@ describe("Donate troops to an ally", () => {
       game.executeNextTick();
     }
 
+    donor.establishContactWith(recipient);
+
     // donor sends alliance request to recipient
     const allianceRequest = donor.createAllianceRequest(recipient);
     expect(allianceRequest).not.toBeNull();
@@ -108,6 +110,8 @@ describe("Donate gold to an ally", () => {
     while (game.inSpawnPhase()) {
       game.executeNextTick();
     }
+
+    donor.establishContactWith(recipient);
 
     // donor sends alliance request to recipient
     const allianceRequest = donor.createAllianceRequest(recipient);
@@ -174,6 +178,8 @@ describe("Donate troops to a non ally", () => {
       game.executeNextTick();
     }
 
+    donor.establishContactWith(recipient);
+
     // Donor sends alliance request to Recipient
     const allianceRequest = donor.createAllianceRequest(recipient);
     expect(allianceRequest).not.toBeNull();
@@ -234,6 +240,8 @@ describe("Donate Gold to a non ally", () => {
     while (game.inSpawnPhase()) {
       game.executeNextTick();
     }
+
+    donor.establishContactWith(recipient);
 
     // Donor sends alliance request to Recipient
     const allianceRequest = donor.createAllianceRequest(recipient);

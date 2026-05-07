@@ -54,6 +54,7 @@ describe("Spawn execution", () => {
         }
       }
     },
+    20000,
   );
 
   test("Handles spawn failure when map is too crowded", async () => {

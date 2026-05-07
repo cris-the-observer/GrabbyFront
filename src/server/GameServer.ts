@@ -1,4 +1,5 @@
 import ipAnonymize from "ip-anonymize";
+import crypto from "node:crypto";
 import { Logger } from "winston";
 import WebSocket from "ws";
 import { z } from "zod";
@@ -14,6 +15,7 @@ import {
   GameStartInfo,
   GameStartInfoSchema,
   PlayerRecord,
+  PrivateLobbyCreateResponse,
   PublicGameType,
   ServerDesyncSchema,
   ServerErrorMessage,
@@ -37,9 +39,12 @@ export enum GamePhase {
 const KICK_REASON_DUPLICATE_SESSION = "kick_reason.duplicate_session";
 const KICK_REASON_LOBBY_CREATOR = "kick_reason.lobby_creator";
 const KICK_REASON_ADMIN = "kick_reason.admin";
-const KICK_REASON_HOST_LEFT = "kick_reason.host_left";
 const KICK_REASON_TOO_MUCH_DATA = "kick_reason.too_much_data";
 const KICK_REASON_INVALID_MESSAGE = "kick_reason.invalid_message";
+
+function generateLobbyToken(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
 
 export class GameServer {
   private sentDesyncMessageClients = new Set<ClientID>();
@@ -91,6 +96,9 @@ export class GameServer {
   private lobbyInfoIntervalId: ReturnType<typeof setInterval> | null = null;
 
   private visibleAt?: number;
+  private readonly hostToken: string;
+  private readonly joinToken: string;
+  private displayLobbyCreatorClientID?: ClientID;
 
   constructor(
     public readonly id: string,
@@ -103,15 +111,36 @@ export class GameServer {
     private publicGameType?: PublicGameType,
   ) {
     this.log = log_.child({ gameID: id });
+    this.hostToken = generateLobbyToken();
+    this.joinToken = generateLobbyToken();
     if (startsAt !== undefined) {
       this.visibleAt = Date.now();
     }
   }
 
   private get lobbyCreatorID(): ClientID | undefined {
-    return this.creatorPersistentID
-      ? this.persistentIdToClientId.get(this.creatorPersistentID)
-      : undefined;
+    return (
+      this.displayLobbyCreatorClientID ??
+      (this.creatorPersistentID
+        ? this.persistentIdToClientId.get(this.creatorPersistentID)
+        : undefined)
+    );
+  }
+
+  public privateLobbyCreateResponse(): PrivateLobbyCreateResponse {
+    return {
+      gameInfo: this.gameInfo(),
+      hostToken: this.hostToken,
+      joinToken: this.joinToken,
+    };
+  }
+
+  public isValidJoinToken(joinToken: string | undefined): boolean {
+    return joinToken === this.joinToken;
+  }
+
+  private isValidHostToken(hostToken: string | undefined): boolean {
+    return hostToken === this.hostToken;
   }
 
   public updateGameConfig(gameConfig: Partial<GameConfig>): void {
@@ -195,7 +224,10 @@ export class GameServer {
     return clientID;
   }
 
-  public joinClient(client: Client): "joined" | "kicked" | "rejected" {
+  public joinClient(
+    client: Client,
+    credentials?: { hostToken?: string },
+  ): "joined" | "kicked" | "rejected" {
     if (this.kickedPersistentIds.has(client.persistentID)) {
       return "kicked";
     }
@@ -266,6 +298,9 @@ export class GameServer {
     this.allClients.set(client.clientID, client);
     this.addListeners(client);
     this.startLobbyInfoBroadcast();
+    if (this.isValidHostToken(credentials?.hostToken)) {
+      this.displayLobbyCreatorClientID = client.clientID;
+    }
 
     if (this.activeClients.length >= (this.gameConfig.maxPlayers ?? Infinity)) {
       this.hasReachedMaxPlayerCount = true;
@@ -287,6 +322,7 @@ export class GameServer {
     persistentID: string,
     lastTurn: number = 0,
     identityUpdate?: { username: string; clanTag: string | null },
+    credentials?: { hostToken?: string },
   ): boolean {
     const clientID = this.getClientIdForPersistentId(persistentID);
     if (!clientID) return false;
@@ -316,6 +352,9 @@ export class GameServer {
     client.ws = ws;
     this.addListeners(client);
     this.startLobbyInfoBroadcast();
+    if (this.isValidHostToken(credentials?.hostToken)) {
+      this.displayLobbyCreatorClientID = client.clientID;
+    }
 
     if (this._hasStarted) {
       this.sendStartGameMsg(client.ws, lastTurn);
@@ -393,13 +432,15 @@ export class GameServer {
 
               // Handle kick_player intent via WebSocket
               case "kick_player": {
-                const isLobbyCreator = client.clientID === this.lobbyCreatorID;
-                const isAdmin = isAdminRole(client.role);
+                const hasHostAuthority = this.isValidHostToken(
+                  clientMsg.hostToken,
+                );
+                const isAdmin = this.isPublic() && isAdminRole(client.role);
 
-                // Check if the authenticated client is the lobby creator or admin
-                if (!isLobbyCreator && !isAdmin) {
+                // Check if the client has host authority or public-game admin moderation.
+                if (!hasHostAuthority && !isAdmin) {
                   this.log.warn(
-                    `Only lobby creator or admin can kick players`,
+                    `Only host token or public admin can kick players`,
                     {
                       clientID: client.clientID,
                       creatorID: this.lobbyCreatorID,
@@ -429,16 +470,15 @@ export class GameServer {
 
                 this.kickClient(
                   stampedIntent.target,
-                  isAdmin && !isLobbyCreator
+                  isAdmin && !hasHostAuthority
                     ? KICK_REASON_ADMIN
                     : KICK_REASON_LOBBY_CREATOR,
                 );
                 return;
               }
               case "update_game_config": {
-                // Only lobby creator can update config
-                if (client.clientID !== this.lobbyCreatorID) {
-                  this.log.warn(`Only lobby creator can update game config`, {
+                if (!this.isValidHostToken(clientMsg.hostToken)) {
+                  this.log.warn(`Only host token can update game config`, {
                     clientID: client.clientID,
                     creatorID: this.lobbyCreatorID,
                     gameID: this.id,
@@ -485,8 +525,8 @@ export class GameServer {
                 return;
               }
               case "start_game": {
-                if (client.clientID !== this.lobbyCreatorID) {
-                  this.log.warn(`Only lobby creator can start game`, {
+                if (!this.isValidHostToken(clientMsg.hostToken)) {
+                  this.log.warn(`Only host token can start game`, {
                     clientID: client.clientID,
                     creatorID: this.lobbyCreatorID,
                     gameID: this.id,
@@ -514,9 +554,8 @@ export class GameServer {
                 return;
               }
               case "toggle_pause": {
-                // Only lobby creator can pause/resume
-                if (client.clientID !== this.lobbyCreatorID) {
-                  this.log.warn(`Only lobby creator can toggle pause`, {
+                if (!this.isValidHostToken(clientMsg.hostToken)) {
+                  this.log.warn(`Only host token can toggle pause`, {
                     clientID: client.clientID,
                     creatorID: this.lobbyCreatorID,
                     gameID: this.id,
@@ -593,19 +632,6 @@ export class GameServer {
       if (!this._hasStarted) {
         // Remove persistentId if the game has not started to prevent going over max players
         this.persistentIdToClientId.delete(client.persistentID);
-        // Close lobby when host leaves before game starts
-        if (
-          !this.isPublic() &&
-          client.persistentID === this.creatorPersistentID
-        ) {
-          this.log.info("Host left, closing lobby", {
-            gameID: this.id,
-          });
-          for (const c of [...this.activeClients]) {
-            this.kickClient(c.clientID, KICK_REASON_HOST_LEFT);
-          }
-          this._hasEnded = true;
-        }
       }
     });
     client.ws.on("error", (error: Error) => {

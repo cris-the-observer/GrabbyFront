@@ -12,6 +12,7 @@ import {
 } from "../core/ApiSchemas";
 import { AnalyticsRecord, AnalyticsRecordSchema } from "../core/Schemas";
 import { getAuthHeader, logOut, userAuth } from "./Auth";
+import { V1_ONLINE_PRODUCT_ENABLED } from "./GrabbyFrontV1";
 
 export async function fetchPlayerById(
   playerId: string,
@@ -55,6 +56,9 @@ export async function fetchPlayerById(
 
 let __userMe: Promise<UserMeResponse | false> | null = null;
 export async function getUserMe(): Promise<UserMeResponse | false> {
+  if (!V1_ONLINE_PRODUCT_ENABLED) {
+    return false;
+  }
   if (__userMe !== null) {
     return __userMe;
   }
@@ -275,6 +279,9 @@ export async function fetchPlayerLeaderboard(
 }
 
 export async function getNews(): Promise<NewsItem[]> {
+  if (!V1_ONLINE_PRODUCT_ENABLED) {
+    return newsItemsFallback as NewsItem[];
+  }
   try {
     const res = await fetch(`${getApiBase()}/news.json`, {
       headers: { Accept: "application/json" },

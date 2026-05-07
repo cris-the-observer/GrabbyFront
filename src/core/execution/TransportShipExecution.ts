@@ -83,6 +83,7 @@ export class TransportShipExecution implements Execution {
 
     if (this.target.isPlayer()) {
       const targetPlayer = this.target as Player;
+      this.attacker.establishContactWith(targetPlayer);
       if (
         targetPlayer.type() !== PlayerType.Bot &&
         this.attacker.type() !== PlayerType.Bot

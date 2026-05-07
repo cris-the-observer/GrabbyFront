@@ -135,6 +135,9 @@ export type PlayerPattern = z.infer<typeof PlayerPatternSchema>;
 export type PlayerColor = z.infer<typeof PlayerColorSchema>;
 export type GameStartInfo = z.infer<typeof GameStartInfoSchema>;
 export type GameInfo = z.infer<typeof GameInfoSchema>;
+export type PrivateLobbyCreateResponse = z.infer<
+  typeof PrivateLobbyCreateResponseSchema
+>;
 export type PublicGames = z.infer<typeof PublicGamesSchema>;
 export type PublicGameInfo = z.infer<typeof PublicGameInfoSchema>;
 export type PublicGameType = z.infer<typeof PublicGameTypeSchema>;
@@ -174,6 +177,14 @@ export const PublicGameInfoSchema = z.object({
   startsAt: z.number().optional(),
   gameConfig: z.lazy(() => GameConfigSchema).optional(),
   publicGameType: PublicGameTypeSchema,
+});
+
+const PrivateLobbyTokenSchema = z.string().min(16).max(256);
+
+export const PrivateLobbyCreateResponseSchema = z.object({
+  gameInfo: GameInfoSchema,
+  hostToken: PrivateLobbyTokenSchema,
+  joinToken: PrivateLobbyTokenSchema,
 });
 
 export const PublicGamesSchema = z.object({
@@ -659,6 +670,7 @@ export const ClientPingMessageSchema = z.object({
 export const ClientIntentMessageSchema = z.object({
   type: z.literal("intent"),
   intent: IntentSchema,
+  hostToken: PrivateLobbyTokenSchema.optional(),
 });
 
 // WARNING: never send this message to clients.
@@ -666,6 +678,8 @@ export const ClientIntentMessageSchema = z.object({
 export const ClientJoinMessageSchema = z.object({
   type: z.literal("join"),
   token: TokenSchema, // WARNING: PII - server extracts persistentID from this
+  joinToken: PrivateLobbyTokenSchema.optional(),
+  hostToken: PrivateLobbyTokenSchema.optional(),
   gameID: ID,
   username: UsernameSchema,
   clanTag: ClanTagSchema,
@@ -680,6 +694,8 @@ export const ClientRejoinMessageSchema = z.object({
   // Note: clientID is NOT sent - server looks it up from persistentID in token
   lastTurn: z.number(),
   token: TokenSchema,
+  joinToken: PrivateLobbyTokenSchema.optional(),
+  hostToken: PrivateLobbyTokenSchema.optional(),
 });
 
 export const ClientMessageSchema = z.discriminatedUnion("type", [

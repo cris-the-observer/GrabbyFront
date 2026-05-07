@@ -1,5 +1,6 @@
 import { GameMapType, UnitType } from "../../core/game/Game";
 import { GameConfig } from "../../core/Schemas";
+import { getDefaultV1Map } from "../GrabbyFrontV1";
 
 /**
  * Maps a slider value (0-400) to the nations config value.
@@ -92,14 +93,6 @@ export function getBotsForCompactMap(
   bots: number,
   compactMapEnabled: boolean,
 ): number {
-  if (compactMapEnabled && bots === 400) {
-    return 100;
-  }
-
-  if (!compactMapEnabled && bots === 100) {
-    return 400;
-  }
-
   return bots;
 }
 
@@ -124,9 +117,7 @@ export function getNationsForCompactMap(
 }
 
 export function getRandomMapType(): GameMapType {
-  const maps = Object.values(GameMapType);
-  const randIdx = Math.floor(Math.random() * maps.length);
-  return maps[randIdx] as GameMapType;
+  return getDefaultV1Map();
 }
 
 export function getUpdatedDisabledUnits(

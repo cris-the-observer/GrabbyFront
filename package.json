@@ -1,5 +1,8 @@
 {
-  "name": "openfront-client",
+  "name": "grabbyfront-client",
+  "bin": {
+    "grabby-ai": "./src/cli/grabby-ai.ts"
+  },
   "scripts": {
     "build-dev": "concurrently \"tsc --noEmit\" \"vite build --mode development\"",
     "build-prod": "concurrently --kill-others-on-fail \"tsc --noEmit\" \"vite build\"",
@@ -11,6 +14,7 @@
     "dev:prod": "cross-env GAME_ENV=dev API_DOMAIN=api.openfront.io concurrently \"npm run start:client\" \"npm run start:server-dev\"",
     "docs:map-generator": "cd map-generator && go doc -cmd -u -all",
     "tunnel": "npm run build-prod && npm run start:server",
+    "cli:ai": "tsx src/cli/grabby-ai.ts",
     "test": "vitest run && vitest run tests/server",
     "perf": "npx tsx tests/perf/run-all.ts",
     "test:coverage": "vitest run --coverage",
@@ -19,6 +23,7 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "prepare": "husky",
+    "gen-universe-map": "node map-generator/universe/generate.mjs",
     "gen-maps": "cd map-generator && go run . && npm run format",
     "inst": "npm ci --ignore-scripts"
   },

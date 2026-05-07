@@ -20,6 +20,7 @@ import { NationEmojiBehavior } from "./nation/NationEmojiBehavior";
 import { NationMIRVBehavior } from "./nation/NationMIRVBehavior";
 import { NationNukeBehavior } from "./nation/NationNukeBehavior";
 import { NationStructureBehavior } from "./nation/NationStructureBehavior";
+import { createNationTraits, NationTraits } from "./nation/NationTraits";
 import { NationWarshipBehavior } from "./nation/NationWarshipBehavior";
 import { SpawnExecution } from "./SpawnExecution";
 import { AiAttackBehavior } from "./utils/AiAttackBehavior";
@@ -43,6 +44,7 @@ export class NationExecution implements Execution {
   private triggerRatio: number;
   private reserveRatio: number;
   private expandRatio: number;
+  private readonly traits: NationTraits;
 
   private readonly embargoMalusApplied = new Set<PlayerID>();
 
@@ -53,9 +55,13 @@ export class NationExecution implements Execution {
     this.random = new PseudoRandom(
       simpleHash(nation.playerInfo.id) + simpleHash(gameID),
     );
-    this.triggerRatio = this.random.nextInt(50, 60) / 100;
-    this.reserveRatio = this.random.nextInt(30, 40) / 100;
-    this.expandRatio = this.random.nextInt(10, 20) / 100;
+    this.traits = createNationTraits(gameID, nation.playerInfo.id);
+    this.triggerRatio =
+      (this.random.nextInt(50, 60) / 100) * this.traits.attackMultiplier;
+    this.reserveRatio =
+      (this.random.nextInt(30, 40) / 100) * this.traits.reserveMultiplier;
+    this.expandRatio =
+      (this.random.nextInt(10, 20) / 100) * this.traits.expandMultiplier;
   }
 
   init(mg: Game) {
@@ -212,6 +218,7 @@ export class NationExecution implements Execution {
       this.mg,
       this.player,
       this.emojiBehavior,
+      this.traits,
     );
     this.warshipBehavior = new NationWarshipBehavior(
       this.random,

@@ -188,6 +188,7 @@ describe("Attack race condition with alliance requests", () => {
     while (game.inSpawnPhase()) {
       game.executeNextTick();
     }
+    playerA.establishContactWith(playerB);
   });
 
   it("Should not mark attacker as traitor when alliance is formed after attack starts", async () => {
@@ -302,6 +303,7 @@ describe("Attack race condition with alliance requests", () => {
       "playerB_id",
     );
     const playerC = addPlayerToGame(playerCInfo, game, game.ref(10, 10));
+    playerC.establishContactWith(playerB);
 
     // Player A sends alliance request to Player B
     const allianceRequestAtoB = playerA.createAllianceRequest(playerB);
@@ -361,6 +363,7 @@ describe("Transport ship alliance rejection", () => {
     while (game.inSpawnPhase()) {
       game.executeNextTick();
     }
+    playerA.establishContactWith(playerB);
   });
 
   test("Should cancel alliance requests if the recipient sends a transport ship", async () => {

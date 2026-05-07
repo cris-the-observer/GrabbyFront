@@ -17,6 +17,7 @@ import {
   EMOJI_SCARED_OF_THREAT,
   NationEmojiBehavior,
 } from "./NationEmojiBehavior";
+import { NationTraits } from "./NationTraits";
 
 export class NationAllianceBehavior {
   constructor(
@@ -24,6 +25,7 @@ export class NationAllianceBehavior {
     private game: Game,
     private player: Player,
     private emojiBehavior: NationEmojiBehavior,
+    private traits?: NationTraits,
   ) {}
 
   handleAllianceRequests() {
@@ -73,7 +75,14 @@ export class NationAllianceBehavior {
 
     for (const enemy of borderingEnemies) {
       if (
-        this.random.chance(30) &&
+        this.random.chance(
+          Math.max(
+            1,
+            Math.round(
+              30 / (this.traits?.allianceRequestChanceMultiplier ?? 1),
+            ),
+          ),
+        ) &&
         isAcceptablePlayerType(enemy) &&
         this.player.canSendAllianceRequest(enemy) &&
         this.getAllianceDecision(enemy, false)

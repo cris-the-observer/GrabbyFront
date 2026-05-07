@@ -8,12 +8,13 @@ import {
   GameMode,
   GameType,
   HumansVsNations,
+  mapCategories,
+  normalGameplayMaps,
   PublicGameModifiers,
   Quads,
   RankedType,
   Trios,
   UnitType,
-  mapCategories,
 } from "../core/game/Game";
 import { PseudoRandom } from "../core/PseudoRandom";
 import { GameConfig, PublicGameType, TeamCountConfig } from "../core/Schemas";
@@ -97,6 +98,7 @@ const frequency: Partial<Record<GameMapName, number>> = {
   ArchipelagoSea: 3,
   BajaCalifornia: 4,
   MiddleEast: 8,
+  Universe: 20,
 };
 
 const TEAM_WEIGHTS: { config: TeamCountConfig; weight: number }[] = [
@@ -509,6 +511,19 @@ export class MapPlaylist {
 
   private buildMapsList(type: PublicGameType): GameMapType[] {
     const maps: GameMapType[] = [];
+    if (type !== "special") {
+      for (const map of normalGameplayMaps) {
+        const key = (Object.keys(GameMapType) as GameMapName[]).find(
+          (k) => GameMapType[k] === map,
+        );
+        const freq = key ? (frequency[key] ?? 0) : 0;
+        for (let i = 0; i < freq; i++) {
+          maps.push(map);
+        }
+      }
+      return maps;
+    }
+
     (Object.keys(GameMapType) as GameMapName[]).forEach((key) => {
       const map = GameMapType[key];
       if (
@@ -518,10 +533,6 @@ export class MapPlaylist {
         return;
       }
       let freq = frequency[key] ?? 0;
-      // Double frequency for Baikal and FourIslands in team games
-      if (type === "team" && (key === "Baikal" || key === "FourIslands")) {
-        freq *= 2;
-      }
       for (let i = 0; i < freq; i++) {
         maps.push(map);
       }

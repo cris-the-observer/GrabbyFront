@@ -40,6 +40,7 @@ describe("NukeExecution", () => {
 
     player = game.player("player_id");
     otherPlayer = game.player("other_id");
+    player.establishContactWith(otherPlayer);
 
     player.conquer(game.ref(1, 1));
   });

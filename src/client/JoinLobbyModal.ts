@@ -55,6 +55,7 @@ export class JoinLobbyModal extends BaseModal {
   @state() private serverTimeOffset: number = 0;
   @state() private isConnecting: boolean = true;
   @state() private lobbyCreatorClientID: string | null = null;
+  @state() private currentJoinToken: string | null = null;
 
   private leaveLobbyOnClose = true;
   private countdownTimerId: number | null = null;
@@ -113,7 +114,11 @@ export class JoinLobbyModal extends BaseModal {
           rightContent:
             this.currentLobbyId && this.isPrivateLobby()
               ? html`
-                  <copy-button .lobbyId=${this.currentLobbyId}></copy-button>
+                  <copy-button
+                    .lobbyId=${this.currentLobbyId}
+                    .joinToken=${this.currentJoinToken ?? ""}
+                    include-lobby-query
+                  ></copy-button>
                 `
               : undefined,
         })}
@@ -286,10 +291,14 @@ export class JoinLobbyModal extends BaseModal {
     `;
   }
 
-  public open(lobbyId: string = "", lobbyInfo?: GameInfo | PublicGameInfo) {
+  public open(
+    lobbyId: string = "",
+    lobbyInfo?: GameInfo | PublicGameInfo,
+    joinToken?: string | null,
+  ) {
     super.open();
     if (lobbyId) {
-      this.startTrackingLobby(lobbyId, lobbyInfo);
+      this.startTrackingLobby(lobbyId, lobbyInfo, joinToken ?? null);
       // If opened with lobbyId but no lobbyInfo (URL join case), auto-join the lobby
       if (!lobbyInfo) {
         this.handleUrlJoin(lobbyId);
@@ -332,8 +341,10 @@ export class JoinLobbyModal extends BaseModal {
   private startTrackingLobby(
     lobbyId: string,
     lobbyInfo?: GameInfo | PublicGameInfo,
+    joinToken?: string | null,
   ) {
     this.currentLobbyId = lobbyId;
+    this.currentJoinToken = joinToken ?? null;
     // clientID will be assigned by server via lobby_info message
     this.currentClientID = "";
     this.gameConfig = null;
@@ -358,6 +369,7 @@ export class JoinLobbyModal extends BaseModal {
     this.stopLobbyUpdates();
     this.currentLobbyId = "";
     this.currentClientID = "";
+    this.currentJoinToken = null;
     this.isConnecting = false;
   }
 
@@ -393,6 +405,7 @@ export class JoinLobbyModal extends BaseModal {
     this.players = [];
     this.currentLobbyId = "";
     this.currentClientID = "";
+    this.currentJoinToken = null;
     this.nationCount = 0;
     this.lobbyStartAt = null;
     this.serverTimeOffset = 0;
@@ -864,12 +877,18 @@ export class JoinLobbyModal extends BaseModal {
     return GAME_ID_REGEX.test(value);
   }
 
-  private normalizeLobbyId(input: string): string | null {
+  private parseLobbyInvite(input: string): {
+    lobbyId: string;
+    joinToken: string | null;
+  } | null {
     const trimmed = input.trim();
     if (!trimmed) return null;
     const extracted = this.extractLobbyIdFromUrl(trimmed).trim();
     if (!this.isValidLobbyId(extracted)) return null;
-    return extracted;
+    return {
+      lobbyId: extracted,
+      joinToken: this.extractJoinTokenFromUrl(trimmed),
+    };
   }
 
   private sanitizeForLog(value: string): string {
@@ -894,7 +913,23 @@ export class JoinLobbyModal extends BaseModal {
     }
   }
 
+  private extractJoinTokenFromUrl(input: string): string | null {
+    if (!input.startsWith("http")) {
+      return null;
+    }
+
+    try {
+      const url = new URL(input);
+      return url.searchParams.get("joinToken");
+    } catch (error) {
+      console.warn("Failed to parse lobby URL", error);
+      return null;
+    }
+  }
+
   private setLobbyId(id: string) {
+    const joinToken = this.extractJoinTokenFromUrl(id);
+    this.currentJoinToken = joinToken;
     if (this.lobbyIdInput) {
       this.lobbyIdInput.value = this.extractLobbyIdFromUrl(id);
     }
@@ -916,17 +951,19 @@ export class JoinLobbyModal extends BaseModal {
 
   private async joinLobbyFromInput(e: SubmitEvent): Promise<void> {
     e.preventDefault();
-    const lobbyId = this.normalizeLobbyId(this.lobbyIdInput.value);
-    if (!lobbyId) {
+    const invite = this.parseLobbyInvite(this.lobbyIdInput.value);
+    if (!invite) {
       this.showMessage(translateText("private_lobby.not_found"), "red");
       return;
     }
+    const { lobbyId } = invite;
+    const joinToken = invite.joinToken ?? this.currentJoinToken;
 
     this.lobbyIdInput.value = lobbyId;
     console.log(`Joining lobby with ID: ${this.sanitizeForLog(lobbyId)}`);
 
     // Initialize tracking state before checking/joining
-    this.startTrackingLobby(lobbyId);
+    this.startTrackingLobby(lobbyId, undefined, joinToken);
 
     try {
       const gameExists = await this.checkActiveLobby(lobbyId);
@@ -1000,6 +1037,7 @@ export class JoinLobbyModal extends BaseModal {
           detail: {
             gameID: lobbyId,
             source: "private",
+            joinToken: this.currentJoinToken ?? undefined,
           } as JoinLobbyEvent,
           bubbles: true,
           composed: true,
